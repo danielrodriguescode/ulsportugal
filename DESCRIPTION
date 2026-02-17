@@ -1,0 +1,29 @@
+Package: ulsportugal
+Type: Package
+Title: Geometrias das Unidades Locais de Saúde de Portugal Continental
+Version: 0.1.0
+Authors@R: c(
+    person(
+      "Daniel", "Rodrigues",
+      email = "danielrodriguesmim@gmail.com",
+      role = c("aut", "cre")
+    )
+  )
+Description: Fornece geometrias (sf) das 39 Unidades Locais de Saúde (ULS) de Portugal
+    Continental, a partir da agregação de geometrias oficiais ao nível de freguesias e
+    concelhos. Inclui normalização automática de nomes e códigos territoriais (DICO/LAU)
+    e harmonização entre fontes Eurostat (giscoR) e DGT (CAOP), para apoiar análises e
+    visualizações territoriais de indicadores em saúde.
+License: MIT
+Encoding: UTF-8
+Language: pt-PT
+LazyData: true
+Depends:
+    R (>= 3.5)
+Imports:
+    dplyr,
+    giscoR,
+    magrittr,
+    sf,
+    stringr
+RoxygenNote: 7.3.3
