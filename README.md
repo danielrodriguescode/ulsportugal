@@ -58,10 +58,6 @@ A função devolve um `sf` com as seguintes colunas principais:
 | `NOME_CURTO` | Nome simplificado (ex.: `"S. João"` ou `"Coimbra"`) para legendas. |
 | `geometry`   | Geometria (`POLYGON`/`MULTIPOLYGON`) para mapeamento. |
 
-## 🎓 Contexto de investigação
-
-Este pacote foi desenvolvido no âmbito de investigação em **Ciência de Dados de Saúde**, com o objetivo de apoiar a análise de indicadores (p. ex., partos, internamentos, acesso a cuidados primários) em ambiente profissional e académico, através de **Sistemas de Informação Geográfica**.
-
 ## 📄 Licença
 
 MIT
