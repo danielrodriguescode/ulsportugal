@@ -2,10 +2,52 @@
 % Please edit documentation in R/ulsportugal.R
 \name{ulsportugal}
 \alias{ulsportugal}
-\title{Mapa das Unidades Locais de Saúde (ULS)}
+\title{Mapa das Unidades Locais de Saúde de Portugal Continental}
 \usage{
-ulsportugal()
+ulsportugal(ano = "2021", verbose = FALSE)
+}
+\arguments{
+\item{ano}{Ano das geometrias LAU a utilizar (passado a
+\code{\link[giscoR]{gisco_get_lau}}). Por omissão \code{"2021"}.}
+
+\item{verbose}{Lógico. Se \code{TRUE}, emite mensagens de progresso.
+Por omissão \code{FALSE}.}
+}
+\value{
+Um objeto \code{sf} com uma linha por ULS e as seguintes colunas:
+\describe{
+  \item{NOME_ULS}{Nome completo e oficial da Unidade Local de Saúde.}
+  \item{NOME_CURTO}{Nome simplificado (ex.: \code{"S. João"}, \code{"Coimbra"})
+    adequado para legendas de mapas.}
+  \item{geometry}{Geometria \code{POLYGON}/\code{MULTIPOLYGON} da ULS,
+    no sistema de referência EPSG:4326.}
+}
 }
 \description{
-Mapa das Unidades Locais de Saúde (ULS)
+Devolve um objeto \code{sf} com as geometrias agregadas das 39 Unidades
+Locais de Saúde (ULS) de Portugal Continental, obtidas a partir das
+geometrias LAU do Eurostat (via \pkg{giscoR}) e do dicionário territorial
+interno (DICO/Freguesia → NOME_ULS).
+
+A agregação é feita em dois passos: primeiro por correspondência exacta
+DICO + nome de freguesia; depois, para os concelhos com uma única ULS,
+por DICO apenas.
+}
+\examples{
+\dontrun{
+library(ulsportugal)
+
+# Carregar o mapa das 39 ULS
+mapa <- ulsportugal()
+
+# Visualização básica
+plot(mapa["NOME_CURTO"], main = "ULS de Portugal Continental")
+
+# Usar um ano alternativo de geometrias LAU
+mapa_2020 <- ulsportugal(ano = "2020")
+}
+
+}
+\seealso{
+\code{\link[giscoR]{gisco_get_lau}}
 }

@@ -19,11 +19,13 @@ Encoding: UTF-8
 Language: pt-PT
 LazyData: true
 Depends:
-    R (>= 3.5)
+    R (>= 4.1)
 Imports:
     dplyr,
     giscoR,
-    magrittr,
     sf,
     stringr
+Suggests:
+    testthat (>= 3.0.0)
+Config/testthat/edition: 3
 RoxygenNote: 7.3.3
