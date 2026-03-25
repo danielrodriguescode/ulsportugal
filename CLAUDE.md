@@ -49,16 +49,27 @@ How it works:
 
 ---
 
-### `juntar_uls(dados, col_freguesia = "Freguesia", col_dico = NULL)`
+### `juntar_uls(dados, col_freguesia = "Freguesia", col_dico = NULL, max_dist = 3)`
 
 Takes a user's `data.frame` with data at the *freguesia* level and returns the same data frame with `NOME_ULS` and `NOME_CURTO` columns added. Does **not** add geometry or aggregate rows.
 
 Join strategy (in priority order):
 1. **DICO + Freguesia name** — most reliable; requires `col_dico`.
 2. **DICO only** — used as fallback for concelhos with a single ULS.
-3. **Freguesia name only** — used when `col_dico = NULL`; more fragile, emits a message.
+3. **Exact name** — when `col_dico = NULL`.
+4. **Normalised name** — strips accents and lowercases before matching.
+5. **Substring** — checks if the user's name appears inside a dictionary name (catches pre-2013 reform parish names inside União de Freguesias names).
+6. **Fuzzy** — edit distance ≤ `max_dist`; catches typos and minor variations.
 
 Rows without a ULS match are kept with `NOME_ULS = NA` and a warning is emitted.
+
+---
+
+### `diagnosticar_freguesias(dados, col_freguesia = "Freguesia", col_dico = NULL, max_dist = 3)`
+
+Analyses every unique freguesia name in the user's data and returns a tibble showing the match result for each one: method used (`"exacto"`, `"normalizado"`, `"subcadeia"`, `"fuzzy"`, `"sem correspondencia"`), the matched dictionary name, the ULS, and the count of rows with that name.
+
+Rows are ordered with unmatched and uncertain matches first, making it easy to spot problems before aggregating.
 
 ---
 

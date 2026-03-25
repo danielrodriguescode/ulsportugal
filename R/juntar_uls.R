@@ -6,16 +6,25 @@
 #' \code{NOME_ULS} e \code{NOME_CURTO}, indicando a Unidade Local de Saúde
 #' a que cada freguesia pertence.
 #'
-#' A correspondência é feita em dois passos, por ordem de prioridade:
+#' A correspondência é feita em cascata, por ordem de prioridade:
 #' \enumerate{
-#'   \item Pelo código DICO de 4 dígitos + nome de freguesia (quando
-#'         \code{col_dico} é fornecido) — método mais robusto.
-#'   \item Pelo nome de freguesia apenas — útil quando não há código DICO,
-#'         mas mais sensível a discrepâncias de grafia entre fontes.
+#'   \item \strong{DICO + nome exacto} — quando \code{col_dico} é fornecido;
+#'         método mais robusto.
+#'   \item \strong{DICO apenas} — para concelhos com uma única ULS.
+#'   \item \strong{Nome exacto} — quando \code{col_dico = NULL}.
+#'   \item \strong{Nome normalizado} — insensível a acentos e capitalização
+#'         (ex.: \code{"sao joao"} encontra \code{"São João"}).
+#'   \item \strong{Subcadeia} — o nome do utilizador está contido no nome do
+#'         dicionário; apanha nomes pré-União de Freguesias
+#'         (ex.: \code{"Cedofeita"} encontra
+#'         \code{"União das Freguesias de Cedofeita, ..."}).
+#'   \item \strong{Fuzzy} — distância de edição reduzida; apanha erros de
+#'         digitação e variações menores.
 #' }
 #'
 #' As linhas sem correspondência ficam com \code{NOME_ULS = NA} e produzem
-#' um aviso com o número de casos não encontrados.
+#' um aviso. Use \code{\link{diagnosticar_freguesias}} para ver um relatório
+#' detalhado da qualidade da correspondência antes de agregar.
 #'
 #' @param dados \code{data.frame} (ou \code{tibble}) com pelo menos uma coluna
 #'   de nome de freguesia.
@@ -24,6 +33,9 @@
 #' @param col_dico Nome (string) da coluna em \code{dados} que contém o código
 #'   DICO de 4 dígitos. Se \code{NULL} (por omissão), a correspondência é feita
 #'   apenas pelo nome de freguesia.
+#' @param max_dist Distância máxima de edição aceite na correspondência fuzzy.
+#'   Por omissão \code{3}. Reduza para correspondências mais estritas ou aumente
+#'   para tolerar mais variações.
 #'
 #' @return O \code{data.frame} original com as colunas \code{NOME_ULS} e
 #'   \code{NOME_CURTO} adicionadas. A geometria \strong{não} é incluída —
@@ -33,28 +45,29 @@
 #' \dontrun{
 #' library(ulsportugal)
 #'
-#' # Dados fictícios ao nível de freguesia
+#' # Correspondência por nome (multi-passo automático)
 #' dados <- data.frame(
-#'   Freguesia = c("Paranhos", "Campanhã", "Cedofeita"),
-#'   casos     = c(120, 95, 80)
+#'   Freguesia = c("Paranhos", "Cedofeita", "sao joao da madeira"),
+#'   casos = c(120, 80, 55)
 #' )
+#' juntar_uls(dados)
 #'
-#' # Juntar a ULS correspondente
-#' dados_com_uls <- juntar_uls(dados)
-#'
-#' # Com código DICO disponível
+#' # Com código DICO (mais robusto)
 #' dados_dico <- data.frame(
-#'   DICO      = c("1311", "1308", "1306"),
-#'   Freguesia = c("Paranhos", "Campanhã", "Cedofeita"),
-#'   casos     = c(120, 95, 80)
+#'   DICO = c("1311", "1306", "0109"),
+#'   Freguesia = c("Paranhos", "Cedofeita", "São João da Madeira"),
+#'   casos = c(120, 80, 55)
 #' )
-#' dados_com_uls <- juntar_uls(dados_dico, col_dico = "DICO")
+#' juntar_uls(dados_dico, col_dico = "DICO")
 #' }
 #'
-#' @seealso \code{\link{agregar_por_uls}}
+#' @seealso \code{\link{agregar_por_uls}}, \code{\link{diagnosticar_freguesias}}
 #'
 #' @export
-juntar_uls <- function(dados, col_freguesia = "Freguesia", col_dico = NULL) {
+juntar_uls <- function(dados,
+                       col_freguesia = "Freguesia",
+                       col_dico      = NULL,
+                       max_dist      = 3) {
 
   # --- validações -----------------------------------------------------------
   if (!is.data.frame(dados)) {
@@ -67,24 +80,21 @@ juntar_uls <- function(dados, col_freguesia = "Freguesia", col_dico = NULL) {
     stop("Coluna DICO '", col_dico, "' nao encontrada em `dados`.")
   }
 
-  # Dicionário interno partido em dois: entradas por freguesia e por concelho
-  dict_freg   <- dicionario_mestre |> dplyr::filter(!is.na(Freguesia))
-  dict_conc   <- dicionario_mestre |>
+  dict_freg <- dicionario_mestre |> dplyr::filter(!is.na(Freguesia))
+  dict_conc <- dicionario_mestre |>
     dplyr::filter(is.na(Freguesia)) |>
     dplyr::select(DICO, NOME_ULS)
 
   # --- correspondência ------------------------------------------------------
+
   if (!is.null(col_dico)) {
 
-    # Passo 1: DICO + Freguesia (correspondência exacta ao nível de freguesia)
-    join_freg <- dados |>
+    # Caminho DICO: join por DICO+Freguesia exacto, depois DICO sozinho
+    resultado <- dados |>
       dplyr::left_join(
         dict_freg |> dplyr::rename(.NOME_ULS_esp = NOME_ULS),
         by = stats::setNames(c("DICO", "Freguesia"), c(col_dico, col_freguesia))
-      )
-
-    # Passo 2: DICO apenas (para concelhos com uma única ULS)
-    resultado <- join_freg |>
+      ) |>
       dplyr::left_join(
         dict_conc |> dplyr::rename(.NOME_ULS_gen = NOME_ULS),
         by = stats::setNames("DICO", col_dico)
@@ -94,16 +104,27 @@ juntar_uls <- function(dados, col_freguesia = "Freguesia", col_dico = NULL) {
 
   } else {
 
-    # Só pelo nome de freguesia (mais frágil — avisa o utilizador)
-    message(
-      "Nota: a correspondencia e feita apenas pelo nome de freguesia. ",
-      "Para maior fiabilidade, forneca `col_dico` com o codigo DICO de 4 digitos."
-    )
+    # Caminho nome: correspondência em cascata (exacto → normalizado →
+    # subcadeia → fuzzy)
+    nomes_usuario <- dados[[col_freguesia]]
+    lookup <- .lookup_por_nome(nomes_usuario, dict_freg, max_dist = max_dist)
+
+    # Contar e comunicar os tipos de correspondência usados
+    tipos <- table(lookup$.match_tipo)
+    tipos_usados <- setdiff(names(tipos), "exacto")
+    if (length(tipos_usados) > 0) {
+      msg <- paste(
+        sapply(tipos_usados, function(t) paste0(tipos[t], " via '", t, "'")),
+        collapse = ", "
+      )
+      message("Correspondencias adicionais (alem de exacto): ", msg,
+              ".\nUse diagnosticar_freguesias() para ver o detalhe.")
+    }
 
     resultado <- dados |>
       dplyr::left_join(
-        dict_freg |> dplyr::select(Freguesia, NOME_ULS),
-        by = stats::setNames("Freguesia", col_freguesia)
+        lookup |> dplyr::select(nome_original, NOME_ULS),
+        by = stats::setNames("nome_original", col_freguesia)
       )
   }
 
@@ -125,7 +146,7 @@ juntar_uls <- function(dados, col_freguesia = "Freguesia", col_dico = NULL) {
   if (n_sem_uls > 0) {
     warning(
       n_sem_uls, " linha(s) sem correspondencia com uma ULS. ",
-      "Verifique a grafia dos nomes de freguesia ou forneca `col_dico`."
+      "Use diagnosticar_freguesias() para ver sugestoes de correcao."
     )
   }
 
